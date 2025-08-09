@@ -1,14 +1,7 @@
-# /telegram_bot/handlers.py
-# -*- coding: utf-8 -*-
-
 import os
-import json
 import logging
 import requests
-from typing import Any, Dict
-
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.constants import ChatAction
 from telegram.ext import ContextTypes
 
 from database import (
@@ -16,54 +9,38 @@ from database import (
     save_history,
     clear_history,
     save_feedback,
-    log_conversation,
-    has_any_history,  # حالا این تابع را مستقیم داریم
+    log_conversation
 )
 
-# --- تنظیمات Flowise ---
 FLOWISE_API_URL = os.getenv("FLOWISE_API_URL")
 FLOWISE_API_KEY = os.getenv("FLOWISE_API_KEY")
 
-# --- تنظیمات سشن ---
-# اگر SESSION_TIMEOUT>0 باشد، پیام «پایان جلسه» فعال است
-SESSION_TIMEOUT = int(os.getenv("SESSION_TIMEOUT", "0"))
-
-# کلید داخلی برای نگهداری وضعیت در حافظه‌ی پردازه
-_SESSION_FLAG_KEY = "_had_history_once"
-
-
-def _build_feedback_markup(message_id: int) -> InlineKeyboardMarkup:
-    """کیبورد بازخورد."""
-    keyboard = [[
-        InlineKeyboardButton("👍", callback_data=f"feedback:like:{message_id}"),
-        InlineKeyboardButton("👎", callback_data=f"feedback:dislike:{message_id}")
-    ]]
-    return InlineKeyboardMarkup(keyboard)
-
-
-def _make_flowise_headers() -> Dict[str, str]:
-    headers = {"Content-Type": "application/json"}
-    if FLOWISE_API_KEY:
-        headers["Authorization"] = f"Bearer {FLOWISE_API_KEY}"
-    return headers
-
-
-def _parse_flowise_response(resp_json: Dict[str, Any]) -> str:
-    for key in ("text", "output", "answer", "result"):
-        val = resp_json.get(key)
-        if isinstance(val, str) and val.strip():
-            return val
-    return json.dumps(resp_json, ensure_ascii=False)
-
+# --- کمک‌کننده: نگاشت تاریخچه به فرمت مورد انتظار Flowise ---
+# Flowise انتظار دارد history به صورت آرایه‌ای از آبجکت‌های:
+#   {"role":"userMessage","content":"..."}  برای کاربر
+#   {"role":"apiMessage","content":"..."}   برای پاسخ مدل
+# باشد. (بر اساس مستند Prediction) :contentReference[oaicite:2]{index=2}
+def _map_history_for_flowise(history: list) -> list:
+    mapped = []
+    for item in history or []:
+        # ما در DB خودمان با کلیدهای "type": human/ai و "message" ذخیره می‌کنیم
+        t = (item or {}).get("type")
+        msg = (item or {}).get("message") or ""
+        if t == "human":
+            mapped.append({"role": "userMessage", "content": msg})
+        elif t == "ai":
+            mapped.append({"role": "apiMessage", "content": msg})
+        # اگر نوع ناشناخته بود، نادیده بگیر
+    return mapped
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("شروع گفتگوی جدید 🚮", callback_data="clear_chat")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
         "سلام! من یک ربات گفتگو هستم. برای شروع یک مکالمه جدید روی دکمه زیر کلیک کنید.",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=reply_markup
     )
     logging.info(f"Start command by user: {update.effective_user.id}")
-
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -72,89 +49,79 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
 
     if data == "clear_chat":
-        ok = clear_history(chat_id)
-        context.user_data[_SESSION_FLAG_KEY] = False
-        msg = "تاریخچه پاک شد. می‌توانید گفتگوی جدید را شروع کنید." if ok else "خطایی در پاک کردن تاریخچه رخ داد."
-        await query.edit_message_text(text=msg)
+        if clear_history(chat_id):
+            reply_text = "تاریخچه پاک شد. می‌توانید گفتگوی جدید را شروع کنید."
+        else:
+            reply_text = "خطایی در پاک کردن تاریخچه رخ داد."
+        await query.edit_message_text(text=reply_text)
 
     elif data.startswith("feedback:"):
-        try:
-            _, feedback_type, message_id_str = data.split(":")
-            message_id = int(message_id_str)
-        except Exception:
-            await query.answer("خطا در ثبت بازخورد.", show_alert=True)
-            return
-
+        _, feedback_type, message_id_str = data.split(":")
+        message_id = int(message_id_str)
         save_feedback(chat_id, message_id, feedback_type, query.message.text)
         new_text = query.message.text + "\n\n---"
-        new_text += "\n✅ از بازخورد شما متشکریم!" if feedback_type == "like" else "\n☑️ از بازخورد شما متشکریم. سعی می‌کنیم بهتر شویم."
+        if feedback_type == "like":
+            new_text += "\n✅ از بازخورد شما متشکریم!"
+        else:
+            new_text += "\n☑️ از بازخورد شما متشکریم. سعی می‌کنیم بهتر شویم."
         await query.edit_message_text(text=new_text, reply_markup=None)
-
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.message.chat_id
-    user_message = (update.message.text or "").strip()
+    user_message = update.message.text
     logging.info(f"Received message: '{user_message}' from user: {chat_id}")
+    await context.bot.send_chat_action(chat_id=chat_id, action='typing')
 
-    await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+    # ۱) تاریخچه داخلی خودمان (برای نمایش و session timeout)
+    local_history = load_history(chat_id)
 
-    # 1) تاریخچه از دیتابیس
-    history = load_history(chat_id)  # اگر منقضی باشد، پاک می‌شود و [] برمی‌گردد
+    # ۲) نگاشت تاریخچه به فرمت Flowise (در صورت نیاز به ارسال)
+    flowise_history = _map_history_for_flowise(local_history)
 
-    # آیا قبلاً این کاربر سابقه داشته؟
-    had_history_once = bool(context.user_data.get(_SESSION_FLAG_KEY, False))
-    had_history_db = has_any_history(chat_id)
-    had_any_history_before = had_history_once or had_history_db
+    # ۳) ساخت payload سازگار با Flowise:
+    #    - sessionId پایدار بر اساس chat_id (برای کار صحیح Buffer Memory)
+    #    - history با فرمت صحیح (اختیاری اما مفید؛ اگر Session تازه باشد، کمک می‌کند)
+    payload = {
+        "question": user_message,
+        "overrideConfig": {
+            "sessionId": str(chat_id)  # کلید اصلی کار حافظه در Flowise
+        },
+        "history": flowise_history     # مطابق مستند Prediction. :contentReference[oaicite:3]{index=3}
+    }
 
-    # 2) اگر تاریخچه خالی شد ولی قبلاً سابقه بوده => پیام پایان جلسه
-    if SESSION_TIMEOUT > 0 and not history and had_any_history_before:
-        try:
-            await update.message.reply_text("🕓 جلسه قبلی شما به پایان رسیده. یک مکالمه جدید شروع شده.")
-        except Exception as e:
-            logging.warning(f"Could not send 'session expired' notice: {e}")
-        # بعد از اعلام، فلگ حافظه محلی را ریست کنیم
-        context.user_data[_SESSION_FLAG_KEY] = False
+    headers = {"Content-Type": "application/json"}
+    if FLOWISE_API_KEY:
+        headers["Authorization"] = f"Bearer {FLOWISE_API_KEY}"
 
-    # 3) درخواست به Flowise
-    payload = {"question": user_message, "history": history}
-    reply_text = "متاسفانه در ارتباط با سرویس هوش مصنوعی مشکلی پیش آمده."
+    reply = ""
     try:
-        resp = requests.post(FLOWISE_API_URL, json=payload, headers=_make_flowise_headers(), timeout=30)
+        resp = requests.post(FLOWISE_API_URL, json=payload, headers=headers, timeout=60)
         resp.raise_for_status()
-        if resp.headers.get("content-type", "").lower().startswith("application/json"):
-            reply_text = _parse_flowise_response(resp.json())
-        else:
-            reply_text = resp.text or reply_text
-    except requests.exceptions.Timeout:
-        reply_text = "⏳ درخواست طول کشید. لطفاً دوباره تلاش کنید."
-        logging.error(f"Flowise API timeout for user {chat_id}")
+        data = resp.json()
+        # فلوایز ممکن است فیلدهای متفاوتی برگرداند؛ ترتیب اولویت زیر امن است
+        reply = data.get("text") or data.get("output") or data.get("answer") or data.get("message") or str(data)
     except requests.exceptions.RequestException as e:
+        reply = "متاسفانه در ارتباط با سرویس هوش مصنوعی مشکلی پیش آمده."
         logging.error(f"Flowise API request failed for user {chat_id}: {e}")
 
-    # 4) لاگ مکالمه در دیتابیس پروژه
-    try:
-        log_conversation(chat_id, user_message, reply_text)
-    except Exception as e:
-        logging.warning(f"log_conversation failed: {e}")
+    # ۴) لاگ کردن مکالمه در دیتابیس پروژه
+    log_conversation(chat_id, user_message, reply)
 
-    # 5) ذخیره تاریخچه جدید
-    try:
-        history.append({"type": "human", "message": user_message})
-        history.append({"type": "ai", "message": reply_text})
-        save_history(chat_id, history)
-        context.user_data[_SESSION_FLAG_KEY] = True
-    except Exception as e:
-        logging.error(f"Error saving/updating history for chat {chat_id}: {e}")
+    # ۵) ذخیره تاریخچه داخلی (برای timeout و نمایش)
+    local_history.append({"type": "human", "message": user_message})
+    local_history.append({"type": "ai", "message": reply})
+    save_history(chat_id, local_history)
 
-    # 6) ارسال پاسخ + بازخورد
-    sent = await update.message.reply_text(reply_text)
-    try:
-        await context.bot.edit_message_reply_markup(
-            chat_id=chat_id,
-            message_id=sent.message_id,
-            reply_markup=_build_feedback_markup(sent.message_id),
-        )
-    except Exception as e:
-        logging.warning(f"Could not attach feedback buttons: {e}")
-
-    logging.info(f"Sent reply to user {chat_id}: '{reply_text}'")
+    # ۶) ارسال پاسخ + دکمه بازخورد
+    sent_message = await update.message.reply_text(reply)
+    message_id = sent_message.message_id
+    keyboard = [[
+        InlineKeyboardButton("👍", callback_data=f"feedback:like:{message_id}"),
+        InlineKeyboardButton("👎", callback_data=f"feedback:dislike:{message_id}")
+    ]]
+    await context.bot.edit_message_reply_markup(
+        chat_id=chat_id,
+        message_id=message_id,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    logging.info(f"Sent reply to user {chat_id}: '{reply}'")
