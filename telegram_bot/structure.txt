@@ -1,0 +1,141 @@
+.
+├── admin_commands.py
+├── ads_commands.py
+├── ads_guard.py
+├── bot.py
+├── dasturat.yml
+├── db_data
+│   ├── base
+│   │   ├── 1
+│   │   ├── 16384
+│   │   ├── 4
+│   │   └── 5
+│   ├── global
+│   │   ├── 1213
+│   │   ├── 1213_fsm
+│   │   ├── 1213_vm
+│   │   ├── 1214
+│   │   ├── 1260
+│   │   ├── 1260_fsm
+│   │   ├── 1260_vm
+│   │   ├── 1261
+│   │   ├── 1261_fsm
+│   │   ├── 1261_vm
+│   │   ├── 1262
+│   │   ├── 1262_fsm
+│   │   ├── 1262_vm
+│   │   ├── 2396
+│   │   ├── 2396_fsm
+│   │   ├── 2396_vm
+│   │   ├── 25286
+│   │   ├── 25287
+│   │   ├── 25288
+│   │   ├── 25294
+│   │   ├── 25295
+│   │   ├── 25296
+│   │   ├── 25363
+│   │   ├── 25364
+│   │   ├── 25365
+│   │   ├── 25366
+│   │   ├── 25367
+│   │   ├── 25368
+│   │   ├── 25369
+│   │   ├── 25370
+│   │   ├── 25371
+│   │   ├── 25372
+│   │   ├── 25373
+│   │   ├── 25374
+│   │   ├── 25375
+│   │   ├── 25376
+│   │   ├── 25377
+│   │   ├── 25378
+│   │   ├── 25401
+│   │   ├── 25402
+│   │   ├── 25403
+│   │   ├── 25411
+│   │   ├── 25412
+│   │   ├── 25416
+│   │   ├── 25417
+│   │   ├── 25418
+│   │   ├── 2846
+│   │   ├── 2964
+│   │   ├── 2966
+│   │   ├── 3592
+│   │   ├── 4060
+│   │   ├── 4175
+│   │   ├── 4177
+│   │   ├── 4181
+│   │   ├── 4183
+│   │   ├── 4185
+│   │   ├── 6000
+│   │   ├── 6100
+│   │   ├── 6243
+│   │   ├── 6244
+│   │   ├── pg_control
+│   │   ├── pg_filenode.map
+│   │   └── pg_internal.init
+│   ├── pg_commit_ts
+│   ├── pg_dynshmem
+│   ├── pg_hba.conf
+│   ├── pg_ident.conf
+│   ├── pg_logical
+│   │   ├── mappings
+│   │   ├── replorigin_checkpoint
+│   │   └── snapshots
+│   ├── pg_multixact
+│   │   ├── members
+│   │   └── offsets
+│   ├── pg_notify
+│   ├── pg_replslot
+│   ├── pg_serial
+│   ├── pg_snapshots
+│   ├── pg_stat
+│   ├── pg_stat_tmp
+│   ├── pg_subtrans
+│   │   └── 0000
+│   ├── pg_tblspc
+│   ├── pg_twophase
+│   ├── PG_VERSION
+│   ├── pg_wal
+│   │   ├── 000000010000000000000003
+│   │   ├── 000000010000000000000004
+│   │   ├── archive_status
+│   │   └── summaries
+│   ├── pg_xact
+│   │   └── 0000
+│   ├── postgresql.auto.conf
+│   ├── postgresql.conf
+│   ├── postmaster.opts
+│   └── postmaster.pid
+├── Dockerfile
+├── flowise_client.py
+├── locales
+│   ├── en
+│   │   └── LC_MESSAGES
+│   └── fa
+│       └── LC_MESSAGES
+├── logging_setup.py
+├── logs
+│   └── bot.log
+├── messages
+│   ├── ar.json
+│   ├── en.json
+│   ├── fa.json
+│   ├── ru.json
+│   └── tr.json
+├── messages_service.py
+├── monitoring
+│   └── prometheus
+│       └── prometheus.yml
+├── panel_ui.py
+├── readme
+├── requirements.txt
+├── shared_utils.py
+├── structure.txt
+├── tools
+│   ├── healthcheck_cron.sh
+│   ├── healthcheck.sh
+│   └── i18n_scan.py
+└── user_commands.py
+
+38 directories, 100 files

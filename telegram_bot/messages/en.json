@@ -1,0 +1,23 @@
+{
+  "errors.rate_limited": "",
+  "chat.off.notice": "",
+  "chat.off.notice_admin_hint": "",
+  "errors.only_private_cmd": "",
+  "errors.only_private_panel": "",
+  "panel.save.ok": "",
+  "panel.group_picker.first_prompt": "",
+  "panel.group_picker.title": "",
+  "panel.manage.in_pv_hint": "",
+  "panel.manage.in_pv_hint.short": "",
+  "panel.nav.chat": "",
+  "panel.nav.ads": "",
+  "panel.home.title": "",
+  "panel.home.body": "",
+  "errors.only_admin": "",
+  "errors.only_admin_short": "",
+  "errors.ai.invalid_response": "",
+  "errors.ai.invalid_response_short": "",
+  "errors.ai.unreachable": "",
+  "errors.ai.missing_base_url": "",
+  "errors.ai.missing_chatflow": ""
+}
